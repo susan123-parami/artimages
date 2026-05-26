@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Art Classifier · {% if page == 'predict' %}Result{% elif page == 'performance' %}Performance{% else %}Explore{% endif %}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="shell">
+
+    <header class="topbar">
+        <a href="/" class="brand">
+            <img src="{{ url_for('static', filename='img/logo.jpg') }}" alt="May Thaw Tar" class="avatar"
+                 onerror="this.style.background='linear-gradient(135deg,#ff7a5e,#e85e44)';this.removeAttribute('src');">
+            <div class="brand-text">
+                <span class="brand-name">Art Classifier</span>
+                <span class="brand-sub">by May Thaw Tar</span>
+            </div>
+        </a>
+
+        <nav class="tabs">
+            <a href="/" class="tab {{ 'active' if page == 'predict' else '' }}"><span class="ico">🎨</span>Predict</a>
+            <a href="/explore" class="tab {{ 'active' if page == 'explore' else '' }}"><span class="ico">📚</span>Explore Data</a>
+            <a href="/performance" class="tab {{ 'active' if page == 'performance' else '' }}"><span class="ico">📊</span>Model Performance</a>
+        </nav>
+
+        <div class="topbar-right">
+            <span class="identity-chip"><span class="dot"></span>Parami University</span>
+        </div>
+    </header>
+
+    <main class="content">
+
+    {% if page == 'predict' %}
+    <!-- ====================== PREDICT ====================== -->
+    {% set arc_total = 251 %}
+    {% set arc_offset = arc_total - (confidence / 100 * arc_total) %}
+
+    <section class="page-head reveal">
+        <span class="kicker">Prediction</span>
+        <h1>Result</h1>
+        <p class="lead">Predicted by the saved model. Confidence is the top class probability.</p>
+    </section>
+
+    {% if low_confidence %}
+    <div class="alert-warn reveal">
+        <strong>Low confidence.</strong> The top class probability is only {{ confidence }}%, which suggests the input may not match any of the five trained categories closely. Treat the result as a best guess.
+    </div>
+    {% endif %}
+
+    <div class="result-grid">
+
+        <!-- Main result -->
+        <div class="card result-main reveal">
+            <div class="result-image-wrap">
+                <img src="{{ url_for('static', filename='uploads/' + uploaded_image) }}"
+                     class="uploaded-img" alt="Uploaded image">
+            </div>
+
+            <div class="prediction-line">
+                <span class="prediction-label">{{ prediction|capitalize }}</span>
+                <div class="prediction-conf">predicted by {{ model_name }}</div>
+            </div>
+
+            <div class="gauge-wrap">
+                <svg class="gauge-svg" viewBox="0 0 200 130">
+                    <path d="M 20 110 A 80 80 0 0 1 180 110"
+                          fill="none" stroke="#262631" stroke-width="14" stroke-linecap="round"/>
+                    <path class="gauge-fill"
+                          d="M 20 110 A 80 80 0 0 1 180 110"
+                          fill="none"
+                          stroke="{{ '#f4b250' if low_confidence else '#ff7a5e' }}"
+                          stroke-width="14" stroke-linecap="round"
+                          stroke-dasharray="{{ arc_total }}"
+                          stroke-dashoffset="{{ arc_offset }}"/>
+                </svg>
+                <div class="gauge-center">
+                    <div class="gauge-pct">{{ confidence }}%</div>
+                    <div class="gauge-label">Confidence</div>
+                </div>
+            </div>
+
+            <div class="prob-list">
+                <div class="section-label">All categories</div>
+                {% for label, prob in probabilities.items() %}
+                {% set is_winner = (label == prediction) %}
+                <div class="prob-row">
+                    <div>
+                        <div class="name {{ 'is-winner' if is_winner }}">{{ label }}</div>
+                        <div class="prob-track">
+                            <div class="prob-fill {{ 'is-winner' if is_winner }}"
+                                 style="width: {{ prob }}%"></div>
+                        </div>
+                    </div>
+                    <div class="pct">{{ prob }}%</div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <a href="/" class="btn btn-primary btn-block" style="margin-top: 22px;">
+                Classify another image
+            </a>
+        </div>
+
+        <!-- Right info panel -->
+        <div class="card info-panel reveal delay-1">
+            <div class="label">About this prediction</div>
+            <h2>Convolutional Neural Network</h2>
+            <p>Your image was resized to 128 by 128 pixels, normalised to the unit interval, and passed through a CNN trained on 7,819 art images. The class with the highest output probability is reported as the prediction.</p>
+
+            <div class="info-stats">
+                <div class="info-stat">
+                    <span class="k">Model</span>
+                    <span class="v">{{ model_name }}</span>
+                </div>
+                <div class="info-stat">
+                    <span class="k">Top class</span>
+                    <span class="v" style="text-transform: capitalize;">{{ prediction }}</span>
+                </div>
+                <div class="info-stat">
+                    <span class="k">Confidence</span>
+                    <span class="v is-accent">{{ confidence }}%</span>
+                </div>
+                <div class="info-stat">
+                    <span class="k">Trained classes</span>
+                    <span class="v">5</span>
+                </div>
+                <div class="info-stat">
+                    <span class="k">Input size</span>
+                    <span class="v">128 × 128</span>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    {% elif page == 'performance' %}
+    <!-- ====================== PERFORMANCE ====================== -->
+    <section class="page-head reveal">
+        <span class="kicker">Model Performance</span>
+        <h1>Model comparison</h1>
+        <p class="lead">Two convolutional architectures evaluated on the validation set. Higher is better on every metric.</p>
+    </section>
+
+    <div class="card reveal">
+        <div class="card-head">
+            <h2>Side-by-side metrics</h2>
+            <span class="meta">Best: {{ best_model }}</span>
+        </div>
+        <table class="table-x">
+            <thead>
+                <tr>
+                    <th>Metric</th>
+                    {% for model_name in metrics.keys() %}
+                    <th>{{ model_name }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% set metric_rows = [('accuracy','Accuracy'), ('f1_weighted','F1 (weighted)'), ('precision_weighted','Precision (weighted)'), ('recall_weighted','Recall (weighted)')] %}
+                {% for metric_key, metric_label in metric_rows %}
+                <tr>
+                    <td>{{ metric_label }}</td>
+                    {% for model_name, m in metrics.items() %}
+                    <td>{{ m[metric_key] }}</td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card reveal">
+        <div class="card-head">
+            <h2>Training curves</h2>
+            <span class="meta">Accuracy and loss per epoch</span>
+        </div>
+        <img src="{{ url_for('static', filename='plots/training_curves.png') }}"
+             class="plot-img" alt="Training Curves">
+    </div>
+
+    <div class="card reveal">
+        <div class="card-head">
+            <h2>Performance bar chart</h2>
+            <span class="meta">Weighted metrics</span>
+        </div>
+        <img src="{{ url_for('static', filename='plots/model_comparison.png') }}"
+             class="plot-img" alt="Model Comparison">
+    </div>
+
+    <div class="card reveal">
+        <div class="card-head">
+            <h2>Confusion matrices</h2>
+            <span class="meta">Validation set</span>
+        </div>
+        <div class="cm-grid">
+            <div>
+                <div class="section-label">Simple CNN</div>
+                <img src="{{ url_for('static', filename='plots/confusion_matrix_simple.png') }}"
+                     class="plot-img" alt="Simple CNN confusion matrix">
+            </div>
+            <div>
+                <div class="section-label">Deeper CNN</div>
+                <img src="{{ url_for('static', filename='plots/confusion_matrix_deeper.png') }}"
+                     class="plot-img" alt="Deeper CNN confusion matrix">
+            </div>
+        </div>
+    </div>
+
+    {% elif page == 'explore' %}
+    <!-- ====================== EXPLORE ====================== -->
+    <section class="page-head reveal">
+        <span class="kicker">Dataset Overview</span>
+        <h1>Explore the data</h1>
+        <p class="lead">A visual summary of the 8,685 art images the models were trained on.</p>
+    </section>
+
+    <div class="card reveal">
+        <div class="card-head">
+            <h2>Class distribution</h2>
+            <span class="meta">Train and validation</span>
+        </div>
+        <img src="{{ url_for('static', filename='plots/class_distribution.png') }}"
+             class="plot-img" alt="Class distribution">
+        <p class="small muted" style="margin-top: 10px;">Painting and Iconography are the most common classes. Engraving has the fewest samples.</p>
+    </div>
+
+    <div class="card reveal">
+        <div class="card-head">
+            <h2>Sample images per class</h2>
+            <span class="meta">5 examples each</span>
+        </div>
+        <img src="{{ url_for('static', filename='plots/sample_grid.png') }}"
+             class="plot-img" alt="Sample images grid">
+    </div>
+
+    <div class="card reveal">
+        <div class="card-head">
+            <h2>Dataset info</h2>
+            <span class="meta">Kaggle</span>
+        </div>
+        <table class="table-x">
+            <tbody>
+                <tr><td>Source</td><td>Art Images (Kaggle), by thedownhill</td></tr>
+                <tr><td>Total images</td><td>8,685 (7,819 training, 866 validation)</td></tr>
+                <tr><td>Classes</td><td>Drawings, Engraving, Iconography, Painting, Sculpture</td></tr>
+                <tr><td>Input size</td><td>128 × 128 pixels</td></tr>
+                <tr><td>Augmentation</td><td>Rotation, shift, shear, zoom, horizontal flip, brightness (training only)</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    {% endif %}
+
+    </main>
+</div>
+
+<script>
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('is-visible');
+                observer.unobserve(entry.target);
+            }
+        });
+    }, { threshold: 0.05, rootMargin: '0px 0px -20px 0px' });
+    document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+</script>
+</body>
+</html>
